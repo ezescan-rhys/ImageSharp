@@ -41,6 +41,11 @@ internal class TiffDecoderCore : IImageDecoderInternals
     private readonly uint maxFrames;
 
     /// <summary>
+    /// Index of the frame to decode from. Inclusive.
+    /// </summary>
+    private readonly uint frameIndex;
+
+    /// <summary>
     /// The stream to decode from.
     /// </summary>
     private BufferedReadStream inputStream;
@@ -59,12 +64,13 @@ internal class TiffDecoderCore : IImageDecoderInternals
     /// Initializes a new instance of the <see cref="TiffDecoderCore" /> class.
     /// </summary>
     /// <param name="options">The decoder options.</param>
-    public TiffDecoderCore(DecoderOptions options)
+    public TiffDecoderCore(TiffDecoderOptions options)
     {
-        this.Options = options;
-        this.configuration = options.Configuration;
-        this.skipMetadata = options.SkipMetadata;
-        this.maxFrames = options.MaxFrames;
+        this.Options = options.GeneralOptions;
+        this.configuration = options.GeneralOptions.Configuration;
+        this.skipMetadata = options.GeneralOptions.SkipMetadata;
+        this.maxFrames = options.GeneralOptions.MaxFrames;
+        this.frameIndex = options.FrameIndex;
         this.memoryAllocator = this.configuration.MemoryAllocator;
     }
 
@@ -174,10 +180,17 @@ internal class TiffDecoderCore : IImageDecoderInternals
             this.byteOrder = reader.ByteOrder;
             this.isBigTiff = reader.IsBigTiff;
 
+            uint frameIndex = 0;
             uint frameCount = 0;
             foreach (ExifProfile ifd in directories)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
+                if (frameIndex++ < this.frameIndex)
+                {
+                    continue;
+                }
+
                 ImageFrame<TPixel> frame = this.DecodeFrame<TPixel>(ifd, cancellationToken);
                 frames.Add(frame);
                 framesMetadata.Add(frame.Metadata);
