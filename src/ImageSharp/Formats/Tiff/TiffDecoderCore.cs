@@ -176,29 +176,16 @@ internal class TiffDecoderCore : IImageDecoderInternals
             this.inputStream = stream;
             DirectoryReader reader = new(stream, this.configuration.MemoryAllocator);
 
-            IList<ExifProfile> directories = reader.Read();
+            IList<ExifProfile> directories = reader.Read(this.frameIndex, this.maxFrames);
             this.byteOrder = reader.ByteOrder;
             this.isBigTiff = reader.IsBigTiff;
 
-            uint frameIndex = 0;
-            uint frameCount = 0;
             foreach (ExifProfile ifd in directories)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-
-                if (frameIndex++ < this.frameIndex)
-                {
-                    continue;
-                }
-
                 ImageFrame<TPixel> frame = this.DecodeFrame<TPixel>(ifd, cancellationToken);
                 frames.Add(frame);
                 framesMetadata.Add(frame.Metadata);
-
-                if (++frameCount == this.maxFrames)
-                {
-                    break;
-                }
             }
 
             ImageMetadata metadata = TiffDecoderMetadataCreator.Create(framesMetadata, this.skipMetadata, reader.ByteOrder, reader.IsBigTiff);
@@ -232,7 +219,7 @@ internal class TiffDecoderCore : IImageDecoderInternals
     {
         this.inputStream = stream;
         DirectoryReader reader = new(stream, this.configuration.MemoryAllocator);
-        IList<ExifProfile> directories = reader.Read();
+        IList<ExifProfile> directories = reader.Read(this.frameIndex, this.maxFrames);
 
         List<ImageFrameMetadata> framesMetadata = new();
         foreach (ExifProfile dir in directories)

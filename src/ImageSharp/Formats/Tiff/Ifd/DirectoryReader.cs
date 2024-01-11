@@ -37,7 +37,7 @@ internal class DirectoryReader
     /// Reads image file directories.
     /// </summary>
     /// <returns>Image file directories.</returns>
-    public IList<ExifProfile> Read()
+    public IList<ExifProfile> Read(uint startIndex, uint count)
     {
         this.ByteOrder = ReadByteOrder(this.stream);
         HeaderReader headerReader = new(this.stream, this.ByteOrder);
@@ -46,7 +46,7 @@ internal class DirectoryReader
         this.nextIfdOffset = headerReader.FirstIfdOffset;
         this.IsBigTiff = headerReader.IsBigTiff;
 
-        return this.ReadIfds(headerReader.IsBigTiff);
+        return this.ReadIfds(headerReader.IsBigTiff, startIndex, count);
     }
 
     private static ByteOrder ReadByteOrder(Stream stream)
@@ -71,11 +71,17 @@ internal class DirectoryReader
         throw TiffThrowHelper.ThrowInvalidHeader();
     }
 
-    private List<ExifProfile> ReadIfds(bool isBigTiff)
+    private List<ExifProfile> ReadIfds(bool isBigTiff, uint startIndex, uint count)
     {
+        uint entryIndex = 0;
         List<EntryReader> readers = new();
-        while (this.nextIfdOffset != 0 && this.nextIfdOffset < (ulong)this.stream.Length)
+        while (this.nextIfdOffset != 0 && this.nextIfdOffset < (ulong)this.stream.Length && readers.Count < count)
         {
+            if (entryIndex++ < startIndex)
+            {
+                continue;
+            }
+
             EntryReader reader = new(this.stream, this.ByteOrder, this.allocator);
             reader.ReadTags(isBigTiff, this.nextIfdOffset);
 
@@ -98,7 +104,7 @@ internal class DirectoryReader
             this.nextIfdOffset = reader.NextIfdOffset;
             readers.Add(reader);
 
-            if (readers.Count >= DirectoryMax)
+            if ((entryIndex + 1) >= DirectoryMax)
             {
                 TiffThrowHelper.ThrowImageFormatException("TIFF image contains too many directories");
             }
